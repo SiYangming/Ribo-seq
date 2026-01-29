@@ -81,7 +81,7 @@ bin_data <- function(df, region_lengths, region_cutoffs = c(50,300,50), bins = c
   #filter the transcripts with UTRs/CDSs less than the defined thresholds
   df %>%
     inner_join(region_lengths, by = "transcript") %>%
-    filter(UTR5_len >= region_cutoffs[1] & CDS_len >= region_cutoffs[2] & UTR5_len >= region_cutoffs[3]) -> filtered_data
+    filter(UTR5_len >= region_cutoffs[1] & CDS_len >= region_cutoffs[2] & UTR3_len >= region_cutoffs[3]) -> filtered_data
   
   #bin data
   #5'UTR
@@ -1213,3 +1213,4 @@ plot_single_nt_heatmaps <- function(gene_names, remove_IDs, col_lims) {
     xlab("nt (relative to start codon)") -> single_nt_heatmap
   return(single_nt_heatmap)
 }
+
