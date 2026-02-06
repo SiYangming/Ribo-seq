@@ -1,3 +1,83 @@
+# Ribo-seq 分析流程运行指南
+
+本指南详细介绍了如何使用 `run.sh` 脚本高效运行 Ribo-seq 分析流程。该脚本整合了 RPFs、Totals 和 Downstream 分析的各个步骤，并提供了环境管理功能，简化了操作流程。
+
+## 1. 环境配置
+
+本流程支持 **Conda** 和 **Local** 两种环境模式。
+
+### Conda 模式 (默认/推荐)
+在此模式下，`run.sh` 会自动检查并激活相应的 Conda 环境。请确保您已安装 Conda/Mamba 并创建了以下环境：
+- **RiboSeq**: 用于 RPFs 流程 (依赖: fastqc, cutadapt, umi_tools, bowtie2, bbmap 等)
+- **RNAseq**: 用于 Totals 流程 (依赖: fastqc, cutadapt, umi_tools, bowtie2, rsem, star 等)
+- **R_analysis**: 用于 Downstream 流程 (依赖: R, bioconductor packages)
+
+如果尚未创建环境，请参考 `Installation` 目录下的 `*.yml` 文件进行创建。
+
+### Local 模式
+如果您希望使用系统自带的工具或已在当前 Shell 中手动激活了环境，请使用 `--env-mode local` 参数。
+在此模式下，脚本不会尝试激活 Conda 环境，而是直接调用系统 PATH 中的工具。请确保所有必要的工具（如 `fastqc`, `cutadapt`, `Rscript` 等）均可用。
+
+## 2. 运行方法
+
+### 基础用法
+```bash
+./run.sh --pipeline [RPFs|Totals|Downstream] [选项]
+```
+
+### 常用命令示例
+
+**1. 运行 RPFs 完整流程 (使用 Conda 环境)**
+```bash
+./run.sh --pipeline RPFs
+```
+
+**2. 运行 Totals 完整流程 (使用 Local 环境)**
+```bash
+./run.sh --pipeline Totals --env-mode local
+```
+
+**3. 运行 Downstream 分析**
+```bash
+./run.sh --pipeline Downstream
+```
+
+**4. 查看特定流程的步骤列表**
+```bash
+./run.sh --pipeline RPFs --list-steps
+```
+
+**5. 仅运行特定步骤**
+例如，仅运行 RPFs 流程中的接头去除步骤：
+```bash
+./run.sh --pipeline RPFs --step RPFs_1_adaptor_removal.sh
+```
+
+## 3. 详细参数说明
+
+| 参数 | 说明 | 默认值 |
+| :--- | :--- | :--- |
+| `--pipeline` | **[必选]** 选择要运行的流程: `RPFs`, `Totals`, `Downstream` | - |
+| `--env-mode` | 环境模式: `conda` (自动激活环境) 或 `local` (使用当前环境) | `conda` |
+| `--step` | 仅运行指定步骤的脚本 (例如 `RPFs_1_adaptor_removal.sh`) | 运行所有步骤 |
+| `--list-steps`| 列出所选流程的所有可用步骤并退出 | - |
+| `--output-dir`| 指定输出目录 | `./results` |
+| `--input-csv` | 指定样本信息文件 | `./info.csv` |
+| `--threads` | 线程数 | `4` |
+| `--rpf-adaptor` | RPF 接头序列 | `TGGAATTCTCGGGTGCCAAGG` |
+| `--totals-adaptor` | Totals 接头序列 | `AGATCGGAAGAG` |
+
+## 4. 运行顺序
+
+`run.sh` 会按照预定义的顺序依次执行脚本。
+- **RPFs 流程**: QC -> 接头去除 -> UMI 提取 -> 比对 -> 去重 -> 计数 -> 汇总
+- **Totals 流程**: QC -> 接头去除 -> UMI 提取 -> 比对 -> 去重 -> 定量
+- **Downstream 流程**: 各种 R 语言统计分析与绘图脚本
+
+建议初次运行时使用默认设置跑通完整流程。
+
+---
+
 # Ribo-seq
 This analysis pipeline processes sequencing data from both Ribosome Protected Footprints (RPFs) and the associated total RNA-seq for Ribosome-footprinting data.
 

@@ -18,10 +18,10 @@ merged_DEseq_data <- read_csv(file.path(parent_dir, "Analysis/DESeq2_output/merg
 most_abundant_transcripts <- read_csv(file = file.path(parent_dir, "Analysis/most_abundant_transcripts/most_abundant_transcripts_IDs.csv"))
 
 #read in feature properties----
-transcript_info_dir <- "transcript_info_dir"
-UTR5_data <- read_csv(file = file.path(transcript_info_dir, "gencode.vM27.pc_transcripts_filtered_UTR5_composition.csv"))
-CDS_data <- read_csv(file = file.path(transcript_info_dir, "gencode.vM27.pc_transcripts_filtered_CDS_composition.csv"))
-UTR3_data <- read_csv(file = file.path(transcript_info_dir, "gencode.vM27.pc_transcripts_filtered_UTR3_composition.csv"))
+transcript_info_dir <- file.path(fasta_dir, "GENCODE", genome_version, "transcript_info")
+UTR5_data <- read_csv(file = file.path(transcript_info_dir, paste0("gencode.", genome_version, ".pc_transcripts_filtered_UTR5_composition.csv")))
+CDS_data <- read_csv(file = file.path(transcript_info_dir, paste0("gencode.", genome_version, ".pc_transcripts_filtered_CDS_composition.csv")))
+UTR3_data <- read_csv(file = file.path(transcript_info_dir, paste0("gencode.", genome_version, ".pc_transcripts_filtered_UTR3_composition.csv")))
 
 #UTR5----
 UTR5_data %>%

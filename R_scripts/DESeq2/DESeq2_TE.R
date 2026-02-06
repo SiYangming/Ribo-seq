@@ -5,8 +5,25 @@ library(tidyverse)
 source("common_variables.R")
 
 #create a variable for what the treatment is----
-treatment <- "KO"
-control <- "WT"
+# Dynamically read grouping info from info.csv
+info_file <- file.path(dirname(parent_dir), "info.csv")
+if (!file.exists(info_file)) info_file <- file.path(parent_dir, "info.csv")
+
+if (!file.exists(info_file)) {
+  stop(paste("info.csv not found at", info_file))
+}
+
+sample_metadata <- read_csv(info_file, show_col_types = FALSE)
+
+# Extract unique treatment levels
+treatments <- unique(sample_metadata$treatment)
+if ("control" %in% treatments) {
+  control <- "control"
+  treatment <- setdiff(treatments, "control")[1]
+} else {
+  control <- treatments[1]
+  treatment <- treatments[2]
+}
 
 #read in the most abundant transcripts per gene csv file----
 most_abundant_transcripts <- read_csv(file = file.path(parent_dir, "Analysis/most_abundant_transcripts/most_abundant_transcripts_IDs.csv"))
@@ -43,10 +60,21 @@ library(tximport)
 library(DESeq2)
 
 #read transcript to gene ID file and rename and reorder
-read_tsv(file = "\\\\data.beatson.gla.ac.uk/data/R11/bioinformatics_resources/FASTAs/mouse/GENCODE/vM27/transcript_info/gencode.vM27.pc_transcripts_gene_IDs.txt", col_names = F) %>%
-  dplyr::rename(GENEID = X1,
-                TXNAME = X2) %>%
-  select(TXNAME, GENEID) -> tx2gene
+transcript_info_dir <- file.path(fasta_dir, "GENCODE", genome_version, "transcript_info")
+txt_map <- file.path(transcript_info_dir, paste0("gencode.", genome_version, ".pc_transcripts_gene_IDs.txt"))
+csv_map_chr20 <- file.path(transcript_info_dir, paste0("gencode.", genome_version, ".pc_transcripts_chr20_gene_IDs.csv"))
+
+if (file.exists(txt_map)) {
+  read_tsv(file = txt_map, col_names = FALSE) %>%
+    dplyr::rename(GENEID = X1, TXNAME = X2) %>%
+    select(TXNAME, GENEID) -> tx2gene
+} else if (file.exists(csv_map_chr20)) {
+  read_csv(file = csv_map_chr20, col_names = FALSE) %>%
+    dplyr::rename(TXNAME = X1, GENEID = X2) %>%
+    select(TXNAME, GENEID) -> tx2gene
+} else {
+  stop(paste0("Transcript-to-gene map not found in ", transcript_info_dir), call. = FALSE)
+}
 
 #import rsem data
 #set directory where rsem output is located
@@ -65,11 +93,32 @@ as.data.frame(txi$counts) %>%
   rownames_to_column("gene") -> Total_counts
 
 #create a data frame with the condition/replicate information----
-#you need to make sure this data frame is correct for your samples
+# Filter and process metadata
+ribo_metadata <- sample_metadata %>% 
+  filter(type == "riboseq") %>%
+  group_by(treatment) %>%
+  mutate(replicate_num = row_number()) %>%
+  ungroup()
+
+rna_metadata <- sample_metadata %>% 
+  filter(type == "rnaseq") %>%
+  group_by(treatment) %>%
+  mutate(replicate_num = row_number()) %>%
+  ungroup()
+
+# Verify counts
+if (length(RPF_sample_names) != nrow(ribo_metadata)) {
+  warning("Mismatch in RPF sample counts between common_variables and info.csv")
+}
+if (length(Total_sample_names) != nrow(rna_metadata)) {
+  warning("Mismatch in Total sample counts between common_variables and info.csv")
+}
+
+# Construct sample_info dynamically
 sample_info <- data.frame(row.names = c(RPF_sample_names, Total_sample_names),
-                          Condition = factor(c(rep(control, 3), rep(treatment, 3))),
-                          SeqType = factor(c(rep("RPFs", 6), rep("RNA", 6))),
-                          replicate = factor(c(1:3,1:3)))
+                          Condition = factor(c(ribo_metadata$treatment, rna_metadata$treatment), levels = c(control, treatment)),
+                          SeqType = factor(c(rep("RPFs", nrow(ribo_metadata)), rep("RNA", nrow(rna_metadata)))),
+                          replicate = factor(c(ribo_metadata$replicate_num, rna_metadata$replicate_num)))
 
 print(sample_info)
 
@@ -101,7 +150,8 @@ if(batch == 1){
 }
 
 head(counts(ddsMat))
-keep <- rowMeans(counts(ddsMat)) >= 10
+# Relaxed filter for small datasets/testing: keep genes with at least 1 count total
+keep <- rowSums(counts(ddsMat)) > 0
 table(keep)
 ddsMat <- ddsMat[keep,]
 
@@ -110,6 +160,8 @@ ddsMat$SeqType = relevel(ddsMat$SeqType,"RNA")
 ddsMat$Condition = relevel(ddsMat$Condition,control)
 
 #run DESeq
+# Use poscounts to handle genes with some zeros
+ddsMat <- estimateSizeFactors(ddsMat, type="poscounts")
 ddsMat <- DESeq(ddsMat)
 
 # Choose the term you want to look at from resultsNames(ddsMat) 

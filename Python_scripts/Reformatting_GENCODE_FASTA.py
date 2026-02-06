@@ -27,19 +27,19 @@ def reformat_fasta(fasta_transcripts_in, fasta_translations_in):
         gene_sym = k.split('|')[5]
         
         #extract 5'UTR length
-        UTR5_search = re.findall(r"\|\UTR5:\d+\-\d+\|",k)
+        UTR5_search = re.findall(r"\|UTR5:\d+\-\d+\|",k)
         if UTR5_search != []:
             UTR5_len = int(UTR5_search[0].strip('|').split('-')[1])
         else:
             UTR5_len = 0
         
         #extract CDS length
-        cds_search = re.findall(r"\|\CDS:\d+\-\d+\|",k)
+        cds_search = re.findall(r"\|CDS:\d+\-\d+\|",k)
         cds_range = cds_search[0].split(':')[1].strip('|')
         cds_len = int(cds_range.split('-')[1]) - int(cds_range.split('-')[0]) + 1
         
         #extract 3'UTR length
-        UTR3_search = re.findall(r"\|\UTR3:\d+\-\d+\|",k)
+        UTR3_search = re.findall(r"\|UTR3:\d+\-\d+\|",k)
         if UTR3_search != []:
             UTR3_range = UTR3_search[0].split(':')[1].strip('|')
             UTR3_len = int(UTR3_range.split('-')[1]) - int(UTR3_range.split('-')[0]) + 1
@@ -55,14 +55,25 @@ def reformat_fasta(fasta_transcripts_in, fasta_translations_in):
             gene_IDs[transcript_ID] = [gene_ID, gene_sym]
     
     #extract protein IDs
+    print(f"Processing {len(fasta_translations_in)} translation records...")
     for k,v in fasta_translations_in.items():
-        protein_ID = k.split('|')[0]
-        transcript_ID = k.split('|')[1]
-        protein_IDs[protein_ID] = [transcript_ID] + gene_IDs[transcript_ID]
+        try:
+            protein_ID = k.split('|')[0]
+            transcript_ID = k.split('|')[1]
+            if transcript_ID in gene_IDs:
+                protein_IDs[protein_ID] = [transcript_ID] + gene_IDs[transcript_ID]
+            else:
+                # This might happen if translation exists but transcript was filtered out or mismatch
+                # print(f"Warning: Transcript {transcript_ID} for Protein {protein_ID} not found in transcript file.")
+                pass
+        except Exception as e:
+             print(f"Error processing record {k}: {e}")
+             continue
         
         #save sequence to fasta dict
         fasta_translations_out[protein_ID] = v
                                     
+    print(f"Generated {len(protein_IDs)} protein IDs.")
     return (fasta_transcripts_out, fasta_translations_out, region_lens, gene_IDs, protein_IDs)
     
 def write_fasta(adict, outfyle, LW=80):
@@ -86,6 +97,7 @@ def main():
     and exporting the UTR and CDS region lengths and gene/transcript/protein IDs to seperate csv files')
     parser.add_argument('FASTA_transcripts', type=str, help='GENCODE FASTA file containing transcript sequences')
     parser.add_argument('FASTA_translations', type=str, help='GENCODE FASTA file containing amino acid sequences')
+    parser.add_argument('--output_dir', type=str, help='Directory to save output CSV files', default=None)
     args = parser.parse_args()
     
     #read in FASTA
@@ -102,10 +114,23 @@ def main():
     fasta_fylename = args.FASTA_translations.replace('.fa', '_reformatted.fa')
     write_fasta(final_fasta_translations, fasta_fylename)
     
+    # Determine CSV output paths
+    import os
+    if args.output_dir:
+        out_dir = args.output_dir
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        base_name = os.path.basename(args.FASTA_transcripts)
+    else:
+        out_dir = os.path.dirname(args.FASTA_transcripts)
+        base_name = os.path.basename(args.FASTA_transcripts)
+
+    csv_prefix = os.path.join(out_dir, base_name.replace('.fa', ''))
+
     #write CSVs
-    write_csv(region_lens, args.FASTA_transcripts.replace('.fa', '_region_lengths.csv'))
-    write_csv(gene_IDs, args.FASTA_transcripts.replace('.fa', '_gene_IDs.csv'))
-    write_csv(protein_IDs, args.FASTA_transcripts.replace('.fa', '_protein_IDs.csv'))
+    write_csv(region_lens, csv_prefix + '_region_lengths.csv')
+    write_csv(gene_IDs, csv_prefix + '_gene_IDs.csv')
+    write_csv(protein_IDs, csv_prefix + '_protein_IDs.csv')
 
 if __name__ == '__main__': 
     main()

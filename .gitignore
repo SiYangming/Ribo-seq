@@ -1,0 +1,5 @@
+.DS_Store
+/logs
+/results
+/reference/GENCODE/v49/rsem_bowtie2_index
+/reference/GENCODE/v49/STAR_index

@@ -5,7 +5,25 @@ library(tidyverse)
 source("common_variables.R")
 
 #create a variable for what the treatment is----
-treatment <- "KO"
+# Dynamically read grouping info from info.csv
+info_file <- file.path(dirname(parent_dir), "info.csv")
+if (!file.exists(info_file)) info_file <- file.path(parent_dir, "info.csv")
+
+if (!file.exists(info_file)) {
+  stop(paste("info.csv not found at", info_file))
+}
+
+sample_metadata <- read_csv(info_file, show_col_types = FALSE)
+
+# Extract unique treatment levels
+treatments <- unique(sample_metadata$treatment)
+if ("control" %in% treatments) {
+  control <- "control"
+  treatment <- setdiff(treatments, "control")[1]
+} else {
+  control <- treatments[1]
+  treatment <- treatments[2]
+}
 
 #themes----
 mytheme <- theme_classic()+
@@ -145,7 +163,7 @@ merged_data %>%
   geom_hline(yintercept = 0, lty=1)+
   geom_vline(xintercept = 0, lty=1) -> RPF_groups_scatter_plot
 
-png(filename = file.path(parent_dir, "plots/DE_analysis", paste(treatment, "_RPF_groups_scatter.png")), width = 500, height = 400)
+png(filename = file.path(parent_dir, "plots/DE_analysis", paste0(treatment, "_RPF_groups_scatter.png")), width = 500, height = 400)
 print(RPF_groups_scatter_plot)
 dev.off()
 
@@ -180,7 +198,7 @@ merged_data %>%
   geom_vline(xintercept = 1, lty=2)+
   geom_vline(xintercept = -1, lty=2) -> TE_scatter_plot
 
-png(filename = file.path(parent_dir, "plots/DE_analysis", paste(treatment, "_TE_scatter.png")), width = 500, height = 400)
+png(filename = file.path(parent_dir, "plots/DE_analysis", paste0(treatment, "_TE_scatter.png")), width = 500, height = 400)
 print(TE_scatter_plot)
 dev.off()
 

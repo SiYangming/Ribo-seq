@@ -7,8 +7,17 @@ library(gridExtra)
 source("common_variables.R")
 
 #read in data----
-region_lengths_dir <- "path/to/file" # add the path to the file here
-region_lengths <- read_csv(file = file.path(region_lengths_dir, "gencode.v38.pc_transcripts_region_lengths.csv"), col_names = c("transcript", "UTR5_len", "CDS_len", "UTR3_len")) # this is for human transcriptome, will need to alter if using a different species
+region_lengths_dir <- file.path(fasta_dir, "GENCODE", genome_version, "transcript_info")
+# Use the chr20 specific file if it exists, otherwise fallback to the general one (or update pattern as needed)
+# Based on ls output, the file is named gencode.v49.pc_transcripts_chr20_region_lengths.csv
+region_lengths_file <- file.path(region_lengths_dir, paste0("gencode.", genome_version, ".pc_transcripts_chr20_region_lengths.csv"))
+
+if (!file.exists(region_lengths_file)) {
+    # Fallback to the original name if the chr20 one doesn't exist (though ls shows chr20)
+    region_lengths_file <- file.path(region_lengths_dir, paste0("gencode.", genome_version, ".pc_transcripts_region_lengths.csv"))
+}
+
+region_lengths <- read_csv(file = region_lengths_file, col_names = c("transcript", "UTR5_len", "CDS_len", "UTR3_len")) # this is for human transcriptome, will need to alter if using a different species
 
 #create themes----
 my_theme <- theme_bw()+
@@ -89,7 +98,7 @@ for (sample in RPF_sample_names) {
   #5'UTR
   df[df$region == "UTR5" & df$nt < 0,] %>%
     ggplot(aes(x = nt, y = mean_cpm))+
-    geom_line(size = 1)+
+    geom_line(linewidth = 1)+
     ylim(ylims)+
     xlab("nt\n(relative to start codon)")+
     ylab("mean CPM")+
@@ -98,7 +107,7 @@ for (sample in RPF_sample_names) {
   #CDS
   df[df$region == "CDS" & df$nt > 0,] %>%
     ggplot(aes(x = nt, y = mean_cpm))+
-    geom_line(size = 1)+
+    geom_line(linewidth = 1)+
     ylim(ylims)+
     xlab("nt\n(relative to start codon)")+
     my_theme+
@@ -108,7 +117,7 @@ for (sample in RPF_sample_names) {
   
   df[df$region == "CDS" & df$nt < 0,] %>%
     ggplot(aes(x = nt, y = mean_cpm))+
-    geom_line(size = 1)+
+    geom_line(linewidth = 1)+
     ylim(ylims)+
     xlab("nt\n(relative to stop codon)")+
     my_theme+
@@ -119,7 +128,7 @@ for (sample in RPF_sample_names) {
   #3'UTR
   df[df$region == "UTR3" & df$nt > 0,] %>%
     ggplot(aes(x = nt, y = mean_cpm))+
-    geom_line(size = 1)+
+    geom_line(linewidth = 1)+
     ylim(ylims)+
     xlab("nt\n(relative to stop codon)")+
     my_theme+
@@ -127,7 +136,13 @@ for (sample in RPF_sample_names) {
           axis.text.y = element_blank(),
           axis.title.y = element_blank()) -> UTR3_start_plot
   
-  png(filename = file.path(parent_dir, "plots/offset_aligned_single_nt_plots", paste(sample, "offset aligned single nt plot.png")), width = 1300, height = 300)
+  # Create directory if it doesn't exist
+  plot_dir <- file.path(parent_dir, "plots/offset_aligned_single_nt_plots")
+  if (!dir.exists(plot_dir)) {
+    dir.create(plot_dir, recursive = TRUE)
+  }
+  
+  png(filename = file.path(plot_dir, paste0(sample, "_offset_aligned_single_nt_plot.png")), width = 1300, height = 300)
   grid.arrange(UTR5_end_plot, CDS_start_plot, CDS_end_plot, UTR3_start_plot, nrow = 1, widths = c(1,2,2,1))
   dev.off()
 }
@@ -142,7 +157,7 @@ ylims <- c(0,max(all_data$mean_cpm))
 #5'UTR
 all_data[all_data$region == "UTR5" & all_data$nt < 0,] %>%
   ggplot(aes(x = nt, y = mean_cpm))+
-  geom_line(size = 1)+
+  geom_line(linewidth = 1)+
   ylim(ylims)+
   xlab("nt\n(relative to start codon)")+
   ylab("mean CPM")+
@@ -151,7 +166,7 @@ all_data[all_data$region == "UTR5" & all_data$nt < 0,] %>%
 #CDS
 all_data[all_data$region == "CDS" & all_data$nt > 0,] %>%
   ggplot(aes(x = nt, y = mean_cpm))+
-  geom_line(size = 1)+
+  geom_line(linewidth = 1)+
   ylim(ylims)+
   xlab("nt\n(relative to start codon)")+
   my_theme+
@@ -161,7 +176,7 @@ all_data[all_data$region == "CDS" & all_data$nt > 0,] %>%
 
 all_data[all_data$region == "CDS" & all_data$nt < 0,] %>%
   ggplot(aes(x = nt, y = mean_cpm))+
-  geom_line(size = 1)+
+  geom_line(linewidth = 1)+
   ylim(ylims)+
   xlab("nt\n(relative to stop codon)")+
   my_theme+
@@ -172,7 +187,7 @@ all_data[all_data$region == "CDS" & all_data$nt < 0,] %>%
 #3'UTR
 all_data[all_data$region == "UTR3" & all_data$nt > 0,] %>%
   ggplot(aes(x = nt, y = mean_cpm))+
-  geom_line(size = 1)+
+  geom_line(linewidth = 1)+
   ylim(ylims)+
   xlab("nt\n(relative to stop codon)")+
   my_theme+
@@ -180,6 +195,12 @@ all_data[all_data$region == "UTR3" & all_data$nt > 0,] %>%
         axis.text.y = element_blank(),
         axis.title.y = element_blank()) -> UTR3_start_plot
 
-png(filename = file.path(parent_dir, "plots/offset_aligned_single_nt_plots/all samples offset aligned single nt plot.png"), width = 1300, height = 300)
+# Create directory if it doesn't exist (just in case loop didn't run or wasn't triggered)
+plot_dir <- file.path(parent_dir, "plots/offset_aligned_single_nt_plots")
+if (!dir.exists(plot_dir)) {
+  dir.create(plot_dir, recursive = TRUE)
+}
+
+png(filename = file.path(plot_dir, "all_samples_offset_aligned_single_nt_plot.png"), width = 1300, height = 300)
 grid.arrange(UTR5_end_plot, CDS_start_plot, CDS_end_plot, UTR3_start_plot, nrow = 1, widths = c(1,2,2,1))
 dev.off()

@@ -6,8 +6,21 @@ library(tximport)
 source("common_variables.R")
 
 #read in transcript and gene IDs
-transcript_to_gene_ID_dir <- "path/to/file" # add the path here
-transcript_to_gene_ID <- read_csv(file = file.path(transcript_to_gene_ID_dir, "gencode.vM27.pc_transcripts_gene_IDs.csv"), col_names = c("transcript", "gene", "gene_sym"))
+transcript_to_gene_ID_dir <- file.path(fasta_dir, "GENCODE", genome_version, "transcript_info")
+gene_ids_file <- file.path(transcript_to_gene_ID_dir, paste0("gencode.", genome_version, ".pc_transcripts_gene_IDs.csv"))
+
+if (!file.exists(gene_ids_file)) {
+  # Look for any file ending in gene_IDs.csv in that dir
+  found_files <- list.files(transcript_to_gene_ID_dir, pattern = "gene_IDs.csv$", full.names = TRUE)
+  if (length(found_files) > 0) {
+    gene_ids_file <- found_files[1]
+    message("Using found gene IDs file: ", gene_ids_file)
+  } else {
+    stop("Could not find gene IDs file in ", transcript_to_gene_ID_dir)
+  }
+}
+
+transcript_to_gene_ID <- read_csv(file = gene_ids_file, col_names = c("transcript", "gene", "gene_sym"))
 
 #create a vector of rsem isoform file names
 rsem_dir <- file.path(parent_dir, 'rsem')

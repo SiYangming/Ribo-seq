@@ -21,6 +21,7 @@
 #which is suitable for this situation but will need to be modified to suit specific needs if using external data which may have different UMI lengths or may not contain UMIs
 
 #--cores=0 will automatically detect the number of cores available on the system and use this amount
+#Here we use $threadN from common_variables.sh to control thread usage consistently
 
 #1> causes all the text that is normally printed to the screen to be saved in a log file in your logs directory for each sample
 
@@ -32,7 +33,7 @@ source common_variables.sh
 #run cutadapt
 for filename in $RPF_filenames
 do
-cutadapt $fastq_dir/${filename}.fastq -a $RPF_adaptor --nextseq-trim=20 -m 30 -M 50 --cores=0 -o $fastq_dir/${filename}_cutadapt.fastq 1> $log_dir/${filename}_cutadapt_log.txt
+cutadapt $fastq_dir/${filename}.fastq -a $RPF_adaptor --nextseq-trim=20 -m 30 -M 50 --cores=$threadN -o $fastq_dir/${filename}_cutadapt.fastq 1> $log_dir/${filename}_cutadapt_log.txt
 done
 
 #run fastqc on cutadapt output

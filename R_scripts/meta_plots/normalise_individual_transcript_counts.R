@@ -5,10 +5,19 @@ library(tidyverse)
 source("common_variables.R")
 
 #read in functions----
-source("binning_RiboSeq_functions.R")
+source("meta_plots/binning_RiboSeq_functions.R")
 
 #read in data----
-region_lengths <- read_csv(file = "/home/local/BICR/jwaldron/data/R11/bioinformatics_resources/FASTAs/mouse/GENCODE/vM27/transcript_info/gencode.vM27.pc_transcripts_region_lengths.csv", col_names = c("transcript", "UTR5_len", "CDS_len", "UTR3_len"))
+region_lengths_file <- file.path(fasta_dir, "GENCODE", genome_version, "transcript_info", paste0("gencode.", genome_version, ".pc_transcripts_region_lengths.csv"))
+if (!file.exists(region_lengths_file)) {
+  # Try chr20 version for testing environment
+  region_lengths_file_chr20 <- file.path(fasta_dir, "GENCODE", genome_version, "transcript_info", paste0("gencode.", genome_version, ".pc_transcripts_chr20_region_lengths.csv"))
+  if (file.exists(region_lengths_file_chr20)) {
+    region_lengths_file <- region_lengths_file_chr20
+    message("Using chr20 region lengths file: ", region_lengths_file)
+  }
+}
+region_lengths <- read_csv(file = region_lengths_file, col_names = c("transcript", "UTR5_len", "CDS_len", "UTR3_len"))
 
 #read in tpms----
 #this reads in the tpms for each transcript and gathers them in tidy format

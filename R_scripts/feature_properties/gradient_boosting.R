@@ -12,7 +12,13 @@ merged_DEseq_data <- read_csv("merged_DESeq2.csv")
 
 most_abundant_transcripts <- read_csv("most_abundant_transcripts_IDs.csv")
 
-feature_properties <- read_csv(file = "gencode.v38.pc_transcripts_filtered_feature_properties.csv")
+# Genome Version
+genome_version <- Sys.getenv("GENOME_VERSION")
+if (genome_version == "") {
+  genome_version <- "v49"
+}
+
+feature_properties <- read_csv(file = paste0("gencode.", genome_version, ".pc_transcripts_filtered_feature_properties.csv"))
 
 #merge data----
 feature_properties %>%

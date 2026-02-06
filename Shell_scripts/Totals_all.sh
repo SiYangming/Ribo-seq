@@ -1,57 +1,37 @@
 #!/usr/bin/env bash
 
-#Read in variables
-source common_variables.sh
+# Master script to run all Totals steps sequentially
+# This ensures consistency with the individual step scripts
 
-#Run cutadapt
-for filename in $Totals_filenames
-do
-cutadapt $fastq_dir/${filename}.fastq -a $Totals_adaptor --nextseq-trim=20 -m 30 --cores=0 -o $fastq_dir/${filename}_cutadapt.fastq 1> $log_dir/${filename}_cutadapt_log.txt
-done
+# Get the directory of this script
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-#Extract UMIs
-for filename in $Totals_filenames
-do
-umi_tools extract -I $fastq_dir/${filename}_cutadapt.fastq -S $fastq_dir/${filename}_UMI_clipped.fastq --bc-pattern=NNNNNNNNNNNN --log=$log_dir/${filename}_extracted_UMIs.log &
-done
-wait
+# Function to run a step and check for errors
+run_step() {
+    local step_script="$1"
+    echo "Starting $step_script..."
+    
+    # Run the script
+    bash "$SCRIPT_DIR/$step_script"
+    
+    # Check exit status
+    if [ $? -ne 0 ]; then
+        echo "Error: $step_script failed."
+        exit 1
+    fi
+    echo "Finished $step_script"
+}
 
-#Align to protein coding transcriptome
-for filename in $Totals_filenames
-do
-bowtie2 -S $SAM_dir/${filename}_pc.sam -U $fastq_dir/${filename}_UMI_clipped.fastq -x $rsem_index --threads $threadN --sensitive --dpad 0 --gbar 99999999 --mp 1,1 --np 1 --score-min L,0,-0.1 2> $log_dir/${filename}_pc_log.txt
-done
+# Run all steps in order
+run_step "Totals_0_QC.sh"
+run_step "Totals_1_adaptor_removal.sh"
+run_step "Totals_2_extract_UMIs.sh"
+run_step "Totals_3a_align_reads_transcriptome.sh"
+run_step "Totals_3b_align_reads_genome.sh"
+run_step "Totals_4a_deduplication_transcriptome.sh"
+run_step "Totals_4b_deduplication_genome.sh"
+run_step "Totals_5_isoform_quantification.sh"
+run_step "Totals_6a_write_most_abundant_transcript_fasta.sh"
+run_step "Totals_6b_extract_read_counts.sh"
 
-#Convert sam to bam 
-for filename in $Totals_filenames
-do
-samtools view -b $SAM_dir/${filename}_pc.sam > $BAM_dir/${filename}_pc.bam &
-done
-wait
-
-#Sort bam
-for filename in $Totals_filenames
-do
-samtools sort $BAM_dir/${filename}_pc.bam -o $BAM_dir/${filename}_pc_sorted.bam -@ $threadN -m 1G
-done
-
-#Index bam
-for filename in $Totals_filenames
-do
-samtools index $BAM_dir/${filename}_pc_sorted.bam $BAM_dir/${filename}_pc_sorted.bai &
-done
-wait
-
-#Run UMI tools deduplication function
-for filename in $Totals_filenames
-do
-umi_tools dedup -I $BAM_dir/${filename}_pc_sorted.bam -S $BAM_dir/${filename}_pc_deduplicated.bam --output-stats=$log_dir/${filename}_deduplication 1> $log_dir/${filename}_deduplication_log.txt &
-done
-wait
-
-#Run RSEM to quantify gene and isoform level expression
-for filename in $Totals_filenames
-do
-rsem-calculate-expression --strandedness forward --fragment-length-mean 300 --fragment-length-sd 100 --alignments $BAM_dir/${filename}_pc_deduplicated.bam $rsem_index $rsem_dir/${filename} &
-done
-wait
+echo "All Totals steps completed successfully."

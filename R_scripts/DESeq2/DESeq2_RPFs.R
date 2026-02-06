@@ -7,8 +7,25 @@ library(vsn)
 source("common_variables.R")
 
 #create a variable for what the treatment is----
-control <- "WT"
-treatment <- "KO"
+# Dynamically read grouping info from info.csv
+info_file <- file.path(dirname(parent_dir), "info.csv")
+if (!file.exists(info_file)) info_file <- file.path(parent_dir, "info.csv")
+
+if (!file.exists(info_file)) {
+  stop(paste("info.csv not found at", info_file))
+}
+
+sample_metadata <- read_csv(info_file, show_col_types = FALSE)
+
+# Extract unique treatment levels
+treatments <- unique(sample_metadata$treatment)
+if ("control" %in% treatments) {
+  control <- "control"
+  treatment <- setdiff(treatments, "control")[1]
+} else {
+  control <- treatments[1]
+  treatment <- treatments[2]
+}
 
 #read in the most abundant transcripts per gene csv file----
 most_abundant_transcripts <- read_csv(file = file.path(parent_dir, "Analysis/most_abundant_transcripts/most_abundant_transcripts_IDs.csv"))
@@ -31,10 +48,25 @@ data_list %>%
   column_to_rownames("transcript") -> RPF_counts
 
 #create a data frame with the condition/replicate information----
-#you need to make sure this data frame is correct for your samples, the below creates one for a n=3 with EFT226 treatment.
+#Filter metadata for RPF samples
+ribo_metadata <- sample_metadata %>% filter(type == "riboseq")
+
+# Ensure RPF_sample_names matches the number of RPF samples
+if (length(RPF_sample_names) != nrow(ribo_metadata)) {
+  warning(paste("Number of RPF samples defined (", length(RPF_sample_names), 
+                ") does not match info.csv RPF entries (", nrow(ribo_metadata), ")."))
+}
+
+# Add replicate numbers (1,2,3 within each condition)
+ribo_metadata <- ribo_metadata %>%
+  group_by(treatment) %>%
+  mutate(replicate_num = row_number()) %>%
+  ungroup()
+
+# Construct sample_info dynamically
 sample_info <- data.frame(row.names = RPF_sample_names,
-                          condition = factor(c(rep(control, 3), rep(treatment, 3))),
-                          replicate = factor(c(1:3,1:3)))
+                          condition = factor(ribo_metadata$treatment, levels = c(control, treatment)),
+                          replicate = factor(ribo_metadata$replicate_num))
 
 #print the data frame to visually check it has been made as expected
 sample_info
@@ -44,8 +76,9 @@ DESeq2data <- DESeqDataSetFromMatrix(countData = RPF_counts,
                                      colData = sample_info,
                                      design = ~ replicate + condition)
 
-#pre-filter to remove genes with less than an average of 10 counts across all samples----
-keep <- rowMeans(counts(DESeq2data)) >= 10
+#pre-filter to remove genes with low counts----
+# Relaxed filter for small datasets/testing: keep genes with at least 1 count total
+keep <- rowSums(counts(DESeq2data)) > 0
 table(keep)
 DESeq2data <- DESeq2data[keep,]
 
@@ -53,7 +86,9 @@ DESeq2data <- DESeq2data[keep,]
 DESeq2data$condition <- relevel(DESeq2data$condition, ref = control)
 
 #run DESeq on DESeq data set----
-dds <- DESeq(DESeq2data)
+# Use poscounts to handle genes with some zeros (common in sparse/small data)
+dds <- estimateSizeFactors(DESeq2data, type="poscounts")
+dds <- DESeq(dds)
 
 #extract results for each comparison----
 res <- results(dds, contrast=c("condition", treatment, control))
@@ -77,7 +112,8 @@ write_csv(DEseq2_output, file = file.path(parent_dir, "Analysis/DESeq2_output", 
 
 #extract normalised counts and plot SD vs mean----
 ntd <- normTransform(dds) #this gives log2(n + 1)
-vsd <- vst(dds, blind=FALSE) #Variance stabilizing transformation
+# Use varianceStabilizingTransformation directly for small datasets (<1000 rows)
+vsd <- varianceStabilizingTransformation(dds, blind=FALSE) 
 rld <- rlog(dds, blind=FALSE) #Regularized log transformation
 
 meanSdPlot(assay(ntd))
