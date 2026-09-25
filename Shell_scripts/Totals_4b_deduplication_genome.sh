@@ -9,7 +9,24 @@ source common_variables.sh
 #run UMI tools deduplication function
 for filename in $Totals_filenames
 do
-umi_tools dedup -I $BAM_dir/${filename}_genome_sorted.bam -S $BAM_dir/${filename}_genome_deduplicated.bam --output-stats=$log_dir/${filename}_genome_deduplication 1> $log_dir/${filename}_genome_deduplication_log.txt &
+    if [ -f "$fastq_dir/${filename}_2_UMI_clipped.fastq" ]; then
+        # Paired-End
+        echo "Deduplicating $filename (Paired-End)"
+        umi_tools dedup \
+            -I $BAM_dir/${filename}_genome_sorted.bam \
+            -S $BAM_dir/${filename}_genome_deduplicated.bam \
+            --paired \
+            --output-stats=$log_dir/${filename}_genome_deduplication \
+            1> $log_dir/${filename}_genome_deduplication_log.txt &
+    else
+        # Single-End
+        echo "Deduplicating $filename (Single-End)"
+        umi_tools dedup \
+            -I $BAM_dir/${filename}_genome_sorted.bam \
+            -S $BAM_dir/${filename}_genome_deduplicated.bam \
+            --output-stats=$log_dir/${filename}_genome_deduplication \
+            1> $log_dir/${filename}_genome_deduplication_log.txt &
+    fi
 done
 wait
 

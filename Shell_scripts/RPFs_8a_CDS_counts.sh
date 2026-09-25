@@ -8,6 +8,6 @@ source common_variables.sh
 
 for filename in $RPF_filenames
 do
-summing_CDS_counts.py ${filename}_pc_final.counts $region_lengths -remove_end_codons -in_dir $counts_dir -out_dir $cds_counts_dir &
+python3 $PYTHON_SCRIPTS_DIR/summing_CDS_counts.py ${filename}_pc_final.counts $region_lengths -remove_end_codons -in_dir $counts_dir -out_dir $cds_counts_dir &
 done
 wait

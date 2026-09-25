@@ -20,20 +20,38 @@ def extract_HAVANA_IDs(GTFfyle):
     with open(GTFfyle,'r') as f:
         for line in f:
             if line.startswith('#'):
-                pass
-            else:
-                source = line.split('\t')[1]
-                if source == "HAVANA":
-                    attribute = line.split('\t')[8]
-                    pc_transcript = re.findall(r'transcript_type\ \"protein_coding\"', attribute)
-                    if pc_transcript != []:
-                        transcript = re.findall(r'\"E\w+T\d+\.\d+\"', attribute)
-                        if transcript != []:
-                            transcriptID = transcript[0].strip('"')
-                            if transcriptID in HAVANA_IDs_dict:
-                                pass
+                continue
+            
+            parts = line.split('\t')
+            if len(parts) < 9:
+                continue
+
+            source = parts[1]
+            if source.upper() == "HAVANA":
+                attribute = parts[8]
+                
+                # Check for protein_coding (support both transcript_type and transcript_biotype)
+                is_pc = 'transcript_type "protein_coding"' in attribute or 'transcript_biotype "protein_coding"' in attribute
+                
+                if is_pc:
+                    # Extract Transcript ID
+                    t_id_match = re.search(r'transcript_id "([^"]+)"', attribute)
+                    if t_id_match:
+                        t_id = t_id_match.group(1)
+                        
+                        # Handle versioning
+                        if '.' in t_id:
+                            final_id = t_id
+                        else:
+                            # Look for version
+                            t_ver_match = re.search(r'transcript_version "([^"]+)"', attribute)
+                            if t_ver_match:
+                                final_id = f"{t_id}.{t_ver_match.group(1)}"
                             else:
-                                HAVANA_IDs_dict[transcriptID] = None
+                                final_id = t_id
+                        
+                        if final_id not in HAVANA_IDs_dict:
+                            HAVANA_IDs_dict[final_id] = None
     return HAVANA_IDs_dict
 
 def read_region_lengths(csv_fyle):
@@ -99,6 +117,7 @@ def main():
     
     #filter FASTA
     filtered_dict = filter_fasta(original_fasta, HAVANA_IDs, region_lengths)
+
     
     #write FASTA
     fasta_fylename = args.FASTA.replace('_reformatted', '_filtered')

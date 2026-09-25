@@ -19,13 +19,51 @@ source common_variables.sh
 #Align to genome
 for filename in $Totals_filenames
 do
-STAR --readFilesIn $fastq_dir/${filename}_UMI_clipped.fastq --runThreadN $threadN --genomeDir $STAR_index --outFilterMultimapNmax 5 --outFilterMismatchNmax 5 --outSAMprimaryFlag AllBestScore --alignEndsType EndToEnd --outSAMtype BAM Unsorted --outSAMunmapped None --sjdbGTFfile $STAR_GTF --outFileNamePrefix $STAR_dir/${filename}
+    if [ -f "$fastq_dir/${filename}_2_UMI_clipped.fastq" ]; then
+        # Paired-End
+        echo "$STAR_dir"
+        echo "$PROJECT_ROOT"
+        echo "Aligning $filename to genome (Paired-End)"
+        # for mac users, need to use --platform linux/amd64 to avoid error
+        # docker run --rm --platform linux/amd64 -v ${PROJECT_ROOT}:${PROJECT_ROOT} -u $(id -u):$(id -g) -w ${PROJECT_ROOT} \
+        # community.wave.seqera.io/library/htslib_samtools_star_gawk:ae438e9a604351a4 \
+        STAR \
+            --runThreadN $threadN \
+            --genomeDir $STAR_index \
+            --readFilesIn $fastq_dir/${filename}_1_UMI_clipped.fastq $fastq_dir/${filename}_2_UMI_clipped.fastq \
+            --outFileNamePrefix $STAR_dir/${filename}_ \
+            --outSAMtype BAM Unsorted \
+            --outSAMprimaryFlag AllBestScore \
+            --outFilterMultimapNmax 5 \
+            --outFilterMismatchNmax 5 \
+            --alignEndsType EndToEnd \
+            --sjdbGTFfile $STAR_GTF
+    else
+        # Single-End
+        echo "Aligning $filename to genome (Single-End)"
+        # for mac users, need to use --platform linux/amd64 to avoid error
+        # docker run --rm --platform linux/amd64 -v ${PROJECT_ROOT}:${PROJECT_ROOT} -u $(id -u):$(id -g) -w ${PROJECT_ROOT} \
+        # community.wave.seqera.io/library/htslib_samtools_star_gawk:ae438e9a604351a4 \
+        STAR \
+            --readFilesIn $fastq_dir/${filename}_UMI_clipped.fastq \
+            --runThreadN $threadN \
+            --genomeDir $STAR_index \
+            --readFilesCommand cat \
+            --outFilterMultimapNmax 5 \
+            --outFilterMismatchNmax 5 \
+            --outSAMprimaryFlag AllBestScore \
+            --alignEndsType EndToEnd \
+            --outSAMtype BAM Unsorted \
+            --sjdbGTFfile $STAR_GTF \
+            --outFileNamePrefix "$STAR_dir/${filename}_"
+            
+    fi
 done
 
 #sort bam
 for filename in $Totals_filenames
 do
-samtools sort $STAR_dir/${filename}Aligned.out.bam -o $BAM_dir/${filename}_genome_sorted.bam -@ $threadN -m 1G
+samtools sort $STAR_dir/${filename}_Aligned.out.bam -o $BAM_dir/${filename}_genome_sorted.bam -@ $threadN -m 1G
 done
 
 #index bam

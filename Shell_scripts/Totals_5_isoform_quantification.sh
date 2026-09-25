@@ -10,6 +10,23 @@ source common_variables.sh
 #Run RSEM to quantify gene and isoform level expression
 for filename in $Totals_filenames
 do
-rsem-calculate-expression --strandedness forward --fragment-length-mean 300 --fragment-length-sd 100 --alignments $BAM_dir/${filename}_pc_deduplicated.bam $rsem_index $rsem_dir/${filename} &
+    # Check for paired-end data
+    if [ -f "$fastq_dir/${filename}_2_UMI_clipped.fastq" ] || [ -f "$fastq_dir/${filename}_2.fastq" ] || [ -f "$fastq_dir/${filename}_2.fastq.gz" ]; then
+        # Paired-end
+        echo "Processing $filename (Paired-End)..."
+        (
+            # Filter for proper pairs and sort by name for RSEM
+             samtools view -f 2 -b $BAM_dir/${filename}_pc_deduplicated.bam | samtools sort -n -o $BAM_dir/${filename}_pc_deduplicated_name_sorted.bam -
+            
+            # Run RSEM
+            rsem-calculate-expression --paired-end --strandedness forward --fragment-length-mean 300 --fragment-length-sd 100 --alignments $BAM_dir/${filename}_pc_deduplicated_name_sorted.bam $rsem_index $rsem_dir/${filename}
+            
+            # Clean up sorted BAM
+            rm $BAM_dir/${filename}_pc_deduplicated_name_sorted.bam
+        ) &
+    else
+        # Single-end
+        rsem-calculate-expression --strandedness forward --fragment-length-mean 300 --fragment-length-sd 100 --alignments $BAM_dir/${filename}_pc_deduplicated.bam $rsem_index $rsem_dir/${filename} &
+    fi
 done
 wait

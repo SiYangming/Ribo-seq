@@ -6,12 +6,16 @@ library(gridExtra)
 #read in common variables
 source("common_variables.R")
 
-#set what you have called your control and treated samples. This can be a vector of strings if more than one treatment has been used.
-control <- "WT"
-treatment <- "KO"
+#set what you have called your control and treated samples.
+conditions <- unique(RPF_sample_info$condition)
+# Attempt to identify control
+control <- conditions[grep("control|ctrl|wt", conditions, ignore.case = TRUE)][1]
+if (is.na(control)) control <- conditions[1]
+treatment <- conditions[conditions != control][1]
+if (is.na(treatment)) treatment <- control
 
 #read in functions----
-source("binning_RiboSeq_functions.R")
+source("meta_plots/binning_RiboSeq_functions.R")
 
 #create themes----
 my_theme <- theme_bw()+
@@ -40,7 +44,16 @@ UTR3_theme <- my_theme+
 load(file = file.path(parent_dir, "Counts_files/R_objects/counts_list.Rdata"))
 
 most_abundant_transcripts <- read_csv(file = file.path(parent_dir, "Analysis/most_abundant_transcripts/most_abundant_transcripts_IDs.csv"))
-region_lengths <- read_csv(file = "\\\\data.beatson.gla.ac.uk/data/R11/bioinformatics_resources/FASTAs/mouse/GENCODE/vM27/transcript_info/gencode.vM27.pc_transcripts_region_lengths.csv", col_names = c("transcript", "UTR5_len", "CDS_len", "UTR3_len"))
+region_lengths_file <- file.path(fasta_dir, "GENCODE", genome_version, "transcript_info", paste0("gencode.", genome_version, ".pc_transcripts_region_lengths.csv"))
+if (!file.exists(region_lengths_file)) {
+  # Try chr20 version for testing environment
+  region_lengths_file_chr20 <- file.path(fasta_dir, "GENCODE", genome_version, "transcript_info", paste0("gencode.", genome_version, ".pc_transcripts_chr20_region_lengths.csv"))
+  if (file.exists(region_lengths_file_chr20)) {
+    region_lengths_file <- region_lengths_file_chr20
+    message("Using chr20 region lengths file: ", region_lengths_file)
+  }
+}
+region_lengths <- read_csv(file = region_lengths_file, col_names = c("transcript", "UTR5_len", "CDS_len", "UTR3_len"))
 
 #run on an individual genes----
 
@@ -59,8 +72,8 @@ plot_single_transcripts(gene = "Ctnnb1", dir = "candidate",
                         region_cutoffs = c(0,0,0))
 
 #read in DEseq2 output----
-read_csv(file.path(parent_dir, "Analysis/DESeq2_output/merged_DESeq2.csv")) %>%
-  inner_join(most_abundant_transcripts, by = "gene") %>%
+read_csv(file.path(parent_dir, "Analysis/DESeq2_output", paste0(treatment, "_merged_DESeq2.csv"))) %>%
+  inner_join(most_abundant_transcripts, by = c("gene", "gene_sym")) %>%
   mutate(RPFs_group = factor(RPFs_group),
          TE_group = factor(TE_group)) -> DESeq2_df
 summary(DESeq2_df)

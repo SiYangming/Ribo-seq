@@ -15,7 +15,22 @@ source common_variables.sh
 #Align to protein coding transcriptome
 for filename in $Totals_filenames
 do
-bowtie2 -S $SAM_dir/${filename}_pc.sam -U $fastq_dir/${filename}_UMI_clipped.fastq -x $rsem_index --threads $threadN --sensitive --dpad 0 --gbar 99999999 --mp 1,1 --np 1 --score-min L,0,-0.1 2> $log_dir/${filename}_pc_log.txt
+    if [ -f "$fastq_dir/${filename}_2_UMI_clipped.fastq" ]; then
+        # Paired-End
+        echo "Aligning $filename to transcriptome (Paired-End)"
+        bowtie2 \
+            -S $SAM_dir/${filename}_pc.sam \
+            -1 $fastq_dir/${filename}_1_UMI_clipped.fastq \
+            -2 $fastq_dir/${filename}_2_UMI_clipped.fastq \
+            -x $rsem_index \
+            --threads $threadN \
+            --sensitive --dpad 0 --gbar 99999999 --mp 1,1 --np 1 --score-min L,0,-0.1 \
+            2> $log_dir/${filename}_pc_log.txt
+    else
+        # Single-End
+        echo "Aligning $filename to transcriptome (Single-End)"
+        bowtie2 -S $SAM_dir/${filename}_pc.sam -U $fastq_dir/${filename}_UMI_clipped.fastq -x $rsem_index --threads $threadN --sensitive --dpad 0 --gbar 99999999 --mp 1,1 --np 1 --score-min L,0,-0.1 2> $log_dir/${filename}_pc_log.txt
+    fi
 done
 
 #convert sam to bam 

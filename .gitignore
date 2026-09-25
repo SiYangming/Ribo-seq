@@ -1,0 +1,20 @@
+.DS_Store
+__pycache__/
+*.pyc
+.Rhistory
+.RData
+Rplots.pdf
+test/.help_out.txt
+
+# Runtime outputs
+/logs/
+/results/
+
+# Built indices (regenerable)
+**/STAR_index/
+**/rsem_bowtie2_index/
+
+# User-local full reference / FASTQ outside test/
+/reference/
+/GSE182201/*.fastq.gz
+/GSE182201/*.fq.gz

@@ -89,7 +89,7 @@ bin_data <- function(df, region_lengths, region_cutoffs = c(50,300,50), bins = c
     filter(Position <= UTR5_len) %>%
     mutate(normalised_position = Position / UTR5_len,
            bin = calculate_bins(normalised_position, bins[1])) %>%
-    group_by(transcript, bin, condition, RPF_type, replicate) %>%
+    group_by(transcript, bin, condition, replicate) %>%
     summarise(binned_cpm = mean(CPM),
               binned_normalised_cpm = mean(normalised_CPM)) %>%
     ungroup() %>%
@@ -101,7 +101,7 @@ bin_data <- function(df, region_lengths, region_cutoffs = c(50,300,50), bins = c
     mutate(CDS_position = Position - UTR5_len,
            normalised_position = CDS_position / CDS_len,
            bin = calculate_bins(normalised_position, bins[2])) %>%
-    group_by(transcript, bin, condition, RPF_type, replicate) %>%
+    group_by(transcript, bin, condition, replicate) %>%
     summarise(binned_cpm = mean(CPM),
               binned_normalised_cpm = mean(normalised_CPM)) %>%
     ungroup() %>%
@@ -113,7 +113,7 @@ bin_data <- function(df, region_lengths, region_cutoffs = c(50,300,50), bins = c
     mutate(UTR3_position = Position - (UTR5_len + CDS_len),
            normalised_position = UTR3_position / UTR3_len,
            bin = calculate_bins(normalised_position, bins[3])) %>%
-    group_by(transcript, bin, condition, RPF_type, replicate) %>%
+    group_by(transcript, bin, condition, replicate) %>%
     summarise(binned_cpm = mean(CPM),
               binned_normalised_cpm = mean(normalised_CPM)) %>%
     ungroup() %>%
@@ -124,12 +124,12 @@ bin_data <- function(df, region_lengths, region_cutoffs = c(50,300,50), bins = c
 
 calculate_binned_delta <- function(alist, value, control = control, treatment = treatment, paired_data = T) {
   do.call("rbind", alist) %>%
-    rename(value = value) %>%
-    select(all_of(transcript, bin, replicate, region, condition, value)) %>%
+    rename(value = all_of(value)) %>%
+    select(transcript, bin, replicate, region, condition, value) %>%
     filter(condition == control | condition == treatment) %>%
     spread(key = condition, value = value) %>%
-    rename(control = control,
-           treatment = treatment) %>%
+    rename(control = all_of(control),
+           treatment = all_of(treatment)) %>%
     group_by(bin, replicate, region) %>%
     summarise(mean_ctrl = mean(control, na.rm = T),
               mean_treatment = mean(treatment, na.rm = T)) %>%
@@ -190,8 +190,8 @@ calculate_positional_delta <- function(alist, control = control, treatment = tre
   do.call("rbind", alist) %>%
     spread(key = condition, value = positional_counts) %>%
     group_by(bin, replicate) %>%
-    rename(control = control,
-           treatment = treatment) %>%
+    rename(control = all_of(control),
+           treatment = all_of(treatment)) %>%
     summarise(mean_ctrl = mean(control, na.rm = T),
               mean_treatment = mean(treatment, na.rm = T)) %>%
     ungroup() -> spread_data
@@ -233,8 +233,8 @@ calculate_single_codon_delta <- function(alist, control = control, treatment = t
   do.call("rbind", alist) %>%
     spread(key = condition, value = single_codon_normalised_cpm) %>%
     group_by(codon, replicate) %>%
-    rename(control = control,
-           treatment = treatment) %>%
+    rename(control = all_of(control),
+           treatment = all_of(treatment)) %>%
     summarise(mean_ctrl = mean(control, na.rm = T),
               mean_treatment = mean(treatment, na.rm = T)) %>%
     ungroup() -> spread_data
@@ -352,12 +352,12 @@ splice_single_nt <- function(df, region_lengths, codons = 50, UTR_nts = 48, regi
 
 calculate_single_nt_delta <- function(alist, value, control = control, treatment = treatment, paired_data = T) {
   do.call("rbind", alist) %>%
-    rename(value = value) %>%
-    select(all_of(transcript, window, replicate, region, condition, value)) %>%
+    rename(value = all_of(value)) %>%
+    select(transcript, window, replicate, region, condition, value) %>%
     spread(key = condition, value = value) %>%
     group_by(window, replicate, region) %>%
-    rename(control = control,
-           treatment = treatment) %>%
+    rename(control = all_of(control),
+           treatment = all_of(treatment)) %>%
     summarise(mean_ctrl = mean(control, na.rm = T),
               mean_treatment = mean(treatment, na.rm = T)) %>%
     ungroup() -> spread_data
@@ -418,8 +418,8 @@ single_codon <- function(df, region_lengths) {
 #Grouping needs to be set to either "bin" (for binned_data) or "window" (for single_nt data)
 summarise_data <- function(df, value, grouping) {
   df %>%
-    rename(value = value,
-           grouping = grouping) %>%
+    rename(value = all_of(value),
+           grouping = all_of(grouping)) %>%
     group_by(region, condition, replicate, grouping) %>%
     summarise(mean_counts = mean(value),
               median_counts = median(value)) %>%
@@ -449,14 +449,18 @@ plot_binned_lines <- function(df, SD = F, conditions = NULL, colours = NULL, CDS
   #calculate axis limits
   if (SD == F) {
     if (CDS_only == F) {
-      ylims <- c(0,max(df$average_counts))
+      max_val <- max(df$average_counts, na.rm = TRUE)
+      ylims <- c(0, if(is.infinite(max_val)) 1 else max_val)
     } else {
-      ylims <- c(0,max(df$average_counts[df$region == "CDS"]))
+      max_val <- max(df$average_counts[df$region == "CDS"], na.rm = TRUE)
+      ylims <- c(0, if(is.infinite(max_val)) 1 else max_val)
     }
     
   } else {
-    ylims <- c(min(df$average_counts - df$sd_counts),
-               max(df$average_counts + df$sd_counts))
+    min_val <- min(df$average_counts - df$sd_counts, na.rm = TRUE)
+    max_val <- max(df$average_counts + df$sd_counts, na.rm = TRUE)
+    ylims <- c(if(is.infinite(min_val)) 0 else min_val,
+               if(is.infinite(max_val)) 1 else max_val)
   }
   
   #5'UTR
@@ -513,9 +517,11 @@ plot_binned_all_replicates <- function(alist, conditions = NULL, colours = NULL,
   
   #calculate axis limits
   if (CDS_only == F) {
-    ylims <- c(0,max(df$mean_counts))
+    max_val <- max(df$mean_counts, na.rm = TRUE)
+    ylims <- c(0, if(is.infinite(max_val)) 1 else max_val)
   } else {
-    ylims <- c(0,max(df$mean_counts[df$region == "CDS"]))
+    max_val <- max(df$mean_counts[df$region == "CDS"], na.rm = TRUE)
+    ylims <- c(0, if(is.infinite(max_val)) 1 else max_val)
   }
   
   #5'UTR
@@ -564,10 +570,13 @@ plot_positional_lines <- function(df, SD = F, conditions = NULL, colours = NULL,
   
   #calculate axis limits
   if (SD == F) {
-    ylims <- c(0,max(df$average_counts))
+    max_val <- max(df$average_counts, na.rm = TRUE)
+    ylims <- c(0, if(is.infinite(max_val)) 1 else max_val)
   } else {
-    ylims <- c(min(df$average_counts - df$sd_counts),
-               max(df$average_counts + df$sd_counts))
+    min_val <- min(df$average_counts - df$sd_counts, na.rm = TRUE)
+    max_val <- max(df$average_counts + df$sd_counts, na.rm = TRUE)
+    ylims <- c(if(is.infinite(min_val)) 0 else min_val,
+               if(is.infinite(max_val)) 1 else max_val)
   }
   
   df %>%
@@ -594,10 +603,13 @@ plot_single_nt_lines <- function(df, SD = F, conditions = NULL, colours = NULL, 
   
   #calculate axis limits
   if (SD == F) {
-    ylims <- c(0,max(df$average_counts))
+    max_val <- max(df$average_counts, na.rm = TRUE)
+    ylims <- c(0, if(is.infinite(max_val)) 1 else max_val)
   } else {
-    ylims <- c(min(df$average_counts - df$sd_counts),
-               max(df$average_counts + df$sd_counts))
+    min_val <- min(df$average_counts - df$sd_counts, na.rm = TRUE)
+    max_val <- max(df$average_counts + df$sd_counts, na.rm = TRUE)
+    ylims <- c(if(is.infinite(min_val)) 0 else min_val,
+               if(is.infinite(max_val)) 1 else max_val)
   }
   
   #5'UTR
@@ -883,8 +895,13 @@ plot_subset <- function(IDs, subset, sub_dir,
                         plot_binned = T, plot_single_nt = F, plot_positional = F,
                         plot_replicates = F, plot_delta = T, SD = T, paired_data = T) {
   
+  if (length(IDs) == 0) {
+    message("No IDs provided for subset: ", subset)
+    return(NULL)
+  }
+
   if (!(dir.exists(file.path(parent_dir, "plots/binned_plots", sub_dir)))) {
-    dir.create(file.path(parent_dir, "plots/binned_plots", sub_dir))
+    dir.create(file.path(parent_dir, "plots/binned_plots", sub_dir), recursive = TRUE, showWarnings = FALSE)
   }
   
   if (plot_binned == T) {
@@ -893,6 +910,12 @@ plot_subset <- function(IDs, subset, sub_dir,
     #subset
     subset_binned_list <- lapply(binned_list, filter_transcripts, transcript_IDs = IDs)
     
+    # Check if data exists
+    if (all(sapply(subset_binned_list, nrow) == 0)) {
+      message("No data found for subset: ", subset)
+      return(NULL)
+    }
+
     #summarise
     summarised_subset_binned_list <- lapply(subset_binned_list, summarise_data, value = binned_value, grouping = "bin")
     do.call("rbind", summarised_subset_binned_list) %>%
@@ -902,7 +925,7 @@ plot_subset <- function(IDs, subset, sub_dir,
       ungroup() -> summarised_subset_binned
     
     #plot lines
-    subset_binned_line_plots <- plot_binned_lines(summarised_subset_binned, SD = SD, control = control, treatment = treatment)
+    subset_binned_line_plots <- plot_binned_lines(summarised_subset_binned, SD = SD)
     
     png(filename = file.path(parent_dir, "plots/binned_plots", sub_dir, paste(treatment, subset, binned_value, "lines.png")), width = 1000, height = 200)
     grid.arrange(subset_binned_line_plots[[1]], subset_binned_line_plots[[2]], subset_binned_line_plots[[3]], nrow = 1, widths = c(1,2,1.5))
@@ -919,7 +942,7 @@ plot_subset <- function(IDs, subset, sub_dir,
     }
     
     if (plot_replicates == T) {
-      subset_binned_line_plots_all_replicates <- plot_binned_all_replicates(summarised_subset_binned_list, control = control, treatment = treatment)
+      subset_binned_line_plots_all_replicates <- plot_binned_all_replicates(summarised_subset_binned_list)
       
       png(filename = file.path(parent_dir, "plots/binned_plots", sub_dir, paste(treatment, subset, binned_value, "lines all replicates.png")), width = 1000, height = 200)
       grid.arrange(subset_binned_line_plots_all_replicates[[1]], subset_binned_line_plots_all_replicates[[2]], subset_binned_line_plots_all_replicates[[3]], nrow = 1, widths = c(1,2,1.5))
@@ -943,7 +966,7 @@ plot_subset <- function(IDs, subset, sub_dir,
       ungroup() -> summarised_subset_single_nt
     
     #plot lines
-    subset_single_nt_line_plots <- plot_single_nt_lines(summarised_subset_single_nt, SD = SD, control = control, treatment = treatment)
+    subset_single_nt_line_plots <- plot_single_nt_lines(summarised_subset_single_nt, SD = SD)
     
     png(filename = file.path(parent_dir, "plots/binned_plots", sub_dir, paste(treatment, subset, single_nt_value, "lines.png")), width = 1300, height = 300)
     grid.arrange(subset_single_nt_line_plots[[1]], subset_single_nt_line_plots[[2]], subset_single_nt_line_plots[[3]], subset_single_nt_line_plots[[4]], nrow = 1, widths = c(1,2,2,1.5))
@@ -971,7 +994,7 @@ plot_subset <- function(IDs, subset, sub_dir,
                 sd_counts = sd(mean_counts)) %>%
       ungroup() -> summarised_positional_subset_binned
     
-    subset_positional_line_plots <- plot_positional_lines(df = summarised_positional_subset_binned, SD = SD, control = control, treatment = treatment)
+    subset_positional_line_plots <- plot_positional_lines(df = summarised_positional_subset_binned, SD = SD)
     
     png(filename = file.path(parent_dir, "plots/binned_plots", sub_dir, paste(treatment, subset, "binned positional lines.png")), width = 500, height = 200)
     print(subset_positional_line_plots)
@@ -989,10 +1012,10 @@ plot_subset <- function(IDs, subset, sub_dir,
 }
 
 
-plot_GSEA_binned <- function(GSEA_set, pathway, subdir,
+plot_GSEA_binned <- function(pathway, GSEA_set, sub_dir,
                              binned_value = binned_value, single_nt_value = single_nt_value,
                              plot_binned = T, plot_single_nt = F, plot_positional = F,
-                             sub_dir, control = control, treatment = treatment, paired_data = T, SD = T, plot_delta = T) {
+                             control = control, treatment = treatment, paired_data = T, SD = T, plot_delta = T) {
   
   gene_list <- GSEA_set[[pathway]]
   
@@ -1007,7 +1030,7 @@ plot_GSEA_binned <- function(GSEA_set, pathway, subdir,
   
 }
 
-plot_single_transcripts <- function(gene, dir,
+plot_single_transcripts <- function(gene, dir, control, treatment,
                                     plot_binned = T, plot_single_nt = F, plot_positional = F, plot_codons = F,
                                     SD = F, plot_replicates = T, plot_delta = T, CDS_only = F,
                                     conditions = NULL, colours = NULL, title = NULL,
@@ -1015,13 +1038,24 @@ plot_single_transcripts <- function(gene, dir,
                                     region_cutoffs = c(0,0,0), bins = c(25,50,25)) {
   
   if (!(dir.exists(file.path(parent_dir, "plots/binned_plots/single_transcripts", dir)))) {
-    dir.create(file.path(parent_dir, "plots/binned_plots/single_transcripts", dir))
+    dir.create(file.path(parent_dir, "plots/binned_plots/single_transcripts", dir), recursive = TRUE, showWarnings = FALSE)
   }
   
   transcript <- most_abundant_transcripts$transcript[most_abundant_transcripts$gene_sym == gene]
   
+  if (length(transcript) == 0) {
+    message("Gene not found: ", gene)
+    return(NULL)
+  }
+  
   #extract data from counts list
   filtered_counts_list <- lapply(counts_list, filter_transcripts, transcript_IDs = transcript)
+  
+  # Check if any data remains
+  if (all(sapply(filtered_counts_list, nrow) == 0)) {
+     message("No data for gene: ", gene)
+     return(NULL)
+  }
   
   #bin data
   if (plot_binned == T) {
@@ -1150,20 +1184,31 @@ plot_single_transcripts <- function(gene, dir,
 
 plot_binned_heatmaps <- function(IDs, remove_IDs = NA, col_lims, control, treatment, value) {
   
+  if (length(IDs) == 0) {
+    message("No IDs provided for heatmap.")
+    return(NULL)
+  }
+
   #extract data from counts list
   subset_binned_list <- lapply(binned_list, filter_transcripts, transcript_IDs = IDs)
   
+  # Check if data exists
+  if (all(sapply(subset_binned_list, nrow) == 0)) {
+    message("No data found for heatmap.")
+    return(NULL)
+  }
+  
   #plot delta
   do.call("rbind", subset_binned_list) %>%
-    rename(value = value) %>%
-    select(all_of(transcript, bin, replicate, region, condition, value)) %>%
+    rename(value = all_of(value)) %>%
+    select(transcript, bin, replicate, region, condition, value) %>%
     filter(condition == control | condition == treatment) %>%
     group_by(condition, transcript, bin, region) %>%
     summarise(mean_value = mean(value)) %>%
     ungroup() %>%
     spread(key = condition, value = mean_value) %>%
-    rename(control = control,
-           treatment = treatment) %>%
+    rename(control = all_of(control),
+           treatment = all_of(treatment)) %>%
     mutate(delta = treatment - control) %>%
     filter(!(transcript %in% remove_IDs)) %>%
     filter(region == "CDS" | region == "UTR5") %>%
@@ -1195,7 +1240,7 @@ plot_single_nt_heatmaps <- function(gene_names, remove_IDs, col_lims) {
     inner_join(UTR5_lens, by = "transcript") %>%
     mutate(plot_position = Position - UTR5_len) %>%
     filter(plot_position <= 1000) %>%
-    select(all_of(gene_sym, condition, replicate, plot_position, normalised_CPM)) %>%
+    select(gene_sym, condition, replicate, plot_position, normalised_CPM) %>%
     spread(key = condition, value = normalised_CPM) %>%
     mutate(delta = EFT226 - Ctrl) %>%
     group_by(gene_sym, plot_position) %>%

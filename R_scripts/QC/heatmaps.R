@@ -8,12 +8,34 @@ library(viridis)
 #read in common variables
 source("common_variables.R")
 
+#set the read lengths you wish to plot
+lengths <- 25:35
+
 #functions
 #write a function that will read in a csv file for use with parLapply
 read_counts_csv <- function(k){
-  df <- read.csv(file = k)
-  df$fyle <- rep(k)
-  return(df)
+  if (!file.exists(k)) {
+    warning(paste("File not found:", k))
+    return(NULL)
+  }
+  # Check if file is empty or has only header
+  info <- file.info(k)
+  if (info$size == 0) {
+    warning(paste("File is empty:", k))
+    return(NULL)
+  }
+  
+  tryCatch({
+    df <- read.csv(file = k)
+    if (nrow(df) == 0) {
+      return(NULL)
+    }
+    df$fyle <- rep(k)
+    return(df)
+  }, error = function(e) {
+    warning(paste("Error reading file:", k, "-", e$message))
+    return(NULL)
+  })
 }
 
 #exports just the legend of a plot
@@ -49,6 +71,11 @@ stopCluster(cl) #Stops cluster
 
 #combine data_list into one data frame
 all_data <- do.call("rbind", data_list)
+
+if (is.null(all_data) || nrow(all_data) == 0) {
+  warning("No data loaded. Skipping plots.")
+  quit(save = "no", status = 0)
+}
 
 #extract sample, read length and splice position from fylenames
 all_data %>%

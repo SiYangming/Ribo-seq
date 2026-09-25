@@ -27,12 +27,37 @@ source common_variables.sh
 #run cutadapt
 for filename in $Totals_filenames
 do
-cutadapt $fastq_dir/${filename}.fastq -a $Totals_adaptor --nextseq-trim=20 -m 30 --cores=0 -o $fastq_dir/${filename}_cutadapt.fastq 1> $log_dir/${filename}_cutadapt_log.txt
+    if [ -f "$fastq_dir/${filename}_2.fastq" ]; then
+        # Paired-end
+        echo "Processing $filename as Paired-End"
+        cutadapt \
+            -a $Totals_adaptor \
+            -A $Totals_adaptor \
+            --nextseq-trim=20 \
+            -m 30 \
+            --cores=$threadN \
+            -o $fastq_dir/${filename}_1_cutadapt.fastq \
+            -p $fastq_dir/${filename}_2_cutadapt.fastq \
+            $fastq_dir/${filename}_1.fastq \
+            $fastq_dir/${filename}_2.fastq \
+            1> $log_dir/${filename}_cutadapt_log.txt
+    else
+        # Single-end
+        echo "Processing $filename as Single-End"
+        cutadapt $fastq_dir/${filename}.fastq -a $Totals_adaptor --nextseq-trim=20 -m 30 --cores=$threadN -o $fastq_dir/${filename}_cutadapt.fastq 1> $log_dir/${filename}_cutadapt_log.txt
+    fi
 done
 
 #run fastqc on cutadapt output
 for filename in $Totals_filenames
 do
-fastqc $fastq_dir/${filename}_cutadapt.fastq --outdir=$fastqc_dir &
+    if [ -f "$fastq_dir/${filename}_2_cutadapt.fastq" ]; then
+        # Paired-End
+        fastqc $fastq_dir/${filename}_1_cutadapt.fastq --outdir=$fastqc_dir &
+        fastqc $fastq_dir/${filename}_2_cutadapt.fastq --outdir=$fastqc_dir &
+    else
+        # Single-End
+        fastqc $fastq_dir/${filename}_cutadapt.fastq --outdir=$fastqc_dir &
+    fi
 done
 wait

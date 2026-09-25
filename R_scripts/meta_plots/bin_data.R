@@ -5,7 +5,7 @@ library(tidyverse)
 source("common_variables.R")
 
 #set the threshold for the average CDS counts a transcript has to have across all samples for it to be included
-min_counts <- 50
+min_counts <- 0
 
 #set the thresholds for region lengths
 UTR5_min_len <- 25
@@ -15,11 +15,19 @@ UTR3_min_len <- 0
 region_cutoffs <- c(UTR5_min_len, CDS_min_len, UTR3_min_len)
 
 #read in functions----
-source("binning_RiboSeq_functions.R")
+source("meta_plots/binning_RiboSeq_functions.R")
 
 #read in data----
-region_lengths <- read_csv(file = "/home/local/BICR/jwaldron/data/R11/bioinformatics_resources/FASTAs/mouse/GENCODE/vM27/transcript_info/gencode.vM27.pc_transcripts_region_lengths.csv", col_names = c("transcript", "UTR5_len", "CDS_len", "UTR3_len"))
-#region_lengths <- read_csv(file = "\\\\data.beatson.gla.ac.uk/data/R11/bioinformatics_resources/FASTAs/mouse/GENCODE/vM27/transcript_info/gencode.vM27.pc_transcripts_region_lengths.csv", col_names = c("transcript", "UTR5_len", "CDS_len", "UTR3_len"))
+region_lengths_file <- file.path(fasta_dir, "GENCODE", genome_version, "transcript_info", paste0("gencode.", genome_version, ".pc_transcripts_region_lengths.csv"))
+if (!file.exists(region_lengths_file)) {
+  # Try chr20 version for testing environment
+  region_lengths_file_chr20 <- file.path(fasta_dir, "GENCODE", genome_version, "transcript_info", paste0("gencode.", genome_version, ".pc_transcripts_chr20_region_lengths.csv"))
+  if (file.exists(region_lengths_file_chr20)) {
+    region_lengths_file <- region_lengths_file_chr20
+    message("Using chr20 region lengths file: ", region_lengths_file)
+  }
+}
+region_lengths <- read_csv(file = region_lengths_file, col_names = c("transcript", "UTR5_len", "CDS_len", "UTR3_len"))
 
 #read in tpms----
 #this reads in the tpms for each transcript and gathers them in tidy format
@@ -52,8 +60,8 @@ for (sample in RPF_sample_names) {
 #extract the transcript IDs
 data_list %>%
   reduce(full_join, by = "transcript") %>%
+  mutate(across(where(is.numeric), ~replace_na(., 0))) %>%
   column_to_rownames("transcript") %>%
-  drop_na() %>%
   filter(rowMeans(.) >= min_counts) %>%
   rownames_to_column("transcript") %>%
   inner_join(region_lengths, by = "transcript") %>%
