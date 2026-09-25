@@ -24,8 +24,10 @@ cran_pkgs <- c(
   "igraph",
   "pROC",
   "fst",
-  "pdp", 
-  "lime"
+  "pdp",
+  "lime",
+  "enrichR",      # Enrichr online enrichment (R_scripts/gsea/Enrichr.R)
+  "gprofiler2"    # g:Profiler (R_scripts/gsea/gProfiler.R)
 )
 
 bioc_pkgs <- c(

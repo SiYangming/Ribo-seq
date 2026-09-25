@@ -13,6 +13,16 @@ bash test/run_smoke.sh   # 文件在位 + 脚本语法 + 依赖探测
 # 真跑见 test/README.md（--input-csv test/info.csv --fasta-dir test/reference --ref-suffix _chr20）
 ```
 
+## 0.1 在线富集（Enrichr / g:Profiler）
+
+本地 GSEA（GMT）仍走 `R_scripts/gsea/fgsea.R`。额外在线富集：
+
+- `R_scripts/gsea/Enrichr.R` — Enrichr
+- `R_scripts/gsea/gProfiler.R` — gprofiler2（[R 文档](https://biit.cs.ut.ee/gprofiler/page/r)）
+- `Python_scripts/gProfiler.py` — REST / `gprofiler-official`（[API](https://biit.cs.ut.ee/gprofiler/page/apis)）
+
+说明见 [R_scripts/gsea/README_enrichment.md](R_scripts/gsea/README_enrichment.md)。
+
 ## 1. 环境配置
 
 本流程支持 **Conda** 和 **Local** 两种环境模式。
